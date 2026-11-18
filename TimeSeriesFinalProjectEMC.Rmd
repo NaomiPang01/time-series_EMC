@@ -1,0 +1,161 @@
+---
+title: "TimeSeriesFinal_EMC"
+author: "H24095324"
+date: "2022-12-30"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(quantmod)
+library(lmtest)
+library(dplyr)
+library(PerformanceAnalytics)
+library(ggplot2)
+library(xts)
+library(tidyverse)
+library(feasts)
+library(fable)
+library(lubridate)
+library(gridExtra)
+library(tseries)
+library(forecast)
+library(rugarch)
+```
+
+#===============================================================================
+
+```{r}
+dt <- read.csv("EMC.csv", header = TRUE)
+
+# Convert the dataset into a time series object
+ts.dt <- ts(dt$Close, start = c(2018,1), end = c(2022,12), frequency = 12)
+ts.dt1 <- ts(data.frame(cbind(Close = ts.dt, 
+                   Return1 = CalculateReturns(ts.dt, method = 'log'), 
+                   Return2 = diff(CalculateReturns(ts.dt, method = 'log')), 
+                   Return3 = diff(diff(CalculateReturns(ts.dt, method = 'log'))))))
+plot(na.omit(ts.dt1[,1]), ylab = 'EMC Closing Price', main = 'EMC Stock Price from 2018-2022', col = 'blue', lwd = 2)
+# The time series plot depicts the closing price of EMC. It shows the price of the stock increases over time even though the price shows volatility. Thus, the stock price is not stationary over time due to changing mean and variance over time.
+plot(na.omit(ts.dt1[,2]), ylab = 'EMC Return', main = 'EMC Stock Price from 2018-2022', lwd = 2)
+# The Log of Return series shows the Return series is more stationary. But, it is non-stationary. i.e. the mean and variance of Return series should be constant over time.
+plot(na.omit(ts.dt1[,3]), ylab = 'EMC 1st difference of Return', main = 'EMC Stock Price from 2018-2022', lwd = 2)
+# After 1st difference, the log of return series is stationary. i.e. the mean and variance of 1st Difference of Return series is constant over time.
+plot(na.omit(ts.dt1[,4]), ylab = 'EMC 2nd difference of Return', main = 'EMC Stock Price from 2018-2022', lwd = 2)
+# After 2nd difference, the log of return series is stationary. i.e. the mean and variance of 2nd Difference of Return series is constant over time.
+
+# Checking the Stationarity of Closing Price
+# By Augmented Dickey Fuller Test (ADF test)
+adf.test(na.omit(ts.dt1[,1]))
+# After applying the ADF to test on closing price of the data, we see that the p-value is higher than 5% significant level. i.e. P-value 0.4952 > 0.05. Therefore, we cannot reject the null hypothesis and conclude that the closing price of the data is non-stationary.
+
+# Checking the Stationarity of Return
+adf.test(na.omit(ts.dt1[,2]))
+# After applying the ADF to test on Return series, we see that the p-value is still higher than 5% significant level. i.e. P-value 0.3425 < 0.05. Therefore, we do not reject the null hypothesis and conclude that the return of the stock price is non-stationary.
+adf.test(na.omit(ts.dt1[,3]))
+# After applying the ADF to test on Return series, we see that the p-value is smaller than 5% significant level. i.e. P-value 0.01 < 0.05. Therefore, we can reject the null hypothesis and conclude that the 1st difference of return of the stock price is stationary.
+adf.test(na.omit(ts.dt1[,4]))
+# After applying the ADF to test on Return series, we see that the p-value is smaller than 5% significant level. i.e. P-value 0.01 < 0.05. Therefore, we can reject the null hypothesis and conclude that the 2nd difference of return of the stock price is stationary.
+
+# Since, most financial studies works on Return rather than Price. Cambell, & Mackinlay (1997) explained 2 main reasons for using Return. First, Return is a complete & scale-free summary of the investment.Second, Return series has most manageable statistical properties than Price. Return series has two key properties such as Stationarity and Ergodicity. Due to the advantages of Return, we proceed our analysis with Return.
+# Therefore, from the p-values, we proceed our analysis with the 1st difference of return.
+
+# Auto Correlation Function
+par(mar = c(5,4,4,2))
+acf(na.omit(ts.dt1[,2]), lag.max = 40, main = 'ACF of Return Values', col = 'red')
+# From the ACF of the Return series, we do not see any significant spikes outside the blue lines except the one at 0 lag due to the series is correlated with itself. Therefore, we conclude that the Return series is not depends on previous days error.
+acf(na.omit(ts.dt1[,3]), lag.max = 40, main = 'ACF of 1st Difference of Return Values', col = 'red')
+# From the ACF of the 1st Difference of Return series, we can see that there are some significant spikes outside the blue lines at 0,1,6,7 & 8 lags due to the series is not correlated with itself. Therefore, we conclude that the 1st Difference of Return series is auto correlated with lags. We conclude that the Return series has influenced of previous days Return.
+acf(na.omit(ts.dt1[,4]), lag.max = 40, main = 'ACF of 2nd Difference of Return Values', col = 'red')
+# From the ACF of the 1st Difference of Return series, we can see that there are some significant spikes outside the blue lines at 0,1,2,6,7,8 & 9 lags due to the series is not correlated with itself. Therefore, we conclude that the 1st Difference of Return series is auto correlated with lags. We conclude that the Return series has influenced of previous days Return.
+
+
+pacf(na.omit(ts.dt1[,2]), main = 'Partial Auto Correlation of Return Values', col = 'red')
+# From the PACF of the Return series, we do not see any significant spikes outside the blue lines due to the series is correlated with itself. Therefore, we conclude that the Return series is not depends on previous days error.
+pacf(na.omit(ts.dt1[,3]), main = 'PACF of 1st Difference of Return Values', col = 'red')
+# The PACF of the 1st Difference of Return series shows some significant spikes at 1,2,3,5 & 7 lags. From this we conclude that the Return series is Partially auto correlated with lags.We conclude that the Return series has influenced of previous days Return.
+pacf(na.omit(ts.dt1[,4]), main = 'PACF of 2nd Difference of Return Values', col = 'red')
+# The PACF of the 1st Difference of Return series shows some significant spikes at 1,2,3,5 & 7 lags. From this we conclude that the Return series is Partially auto correlated with lags.We conclude that the Return series has influenced of previous days Return.
+```
+
+## Stylized Facts of Financial Data
+### Distributions of Returns is not normal.
+### Absence of significant auto correlation in returns.
+### Slowly decreasing auto correlation in squared or absolute returns.
+### Volatility clustering.
+
+```{r}
+par(mar = c(5,4,4,2))
+# ggplot(aes(Return1), data = ts.dt1[,2]) + geom_histogram(col = 'black', fill = 'red') + ggtitle('Return of EMC')
+# ggplot(aes(Return2), data = ts.dt1[,3]) + geom_histogram(col = 'black', fill = 'red') + ggtitle('1st Difference of Return of EMC')
+# ggplot(aes(Return3), data = ts.dt1[,4]) + geom_histogram(col = 'black', fill = 'red') + ggtitle('2nd Difference of Return of EMC')
+
+skewness(ts.dt1[,2]) ; kurtosis(ts.dt1[,2])
+# The Skewness of the Return i0.5445667 & Kurtosis is 1.675119. It depicts that the Return series is positively skewed & follows fat tailed distributions.
+skewness(ts.dt1[,3]) ; kurtosis(ts.dt1[,3])
+# The Skewness of the 1st Difference of Return is -0.7209044 and Kurtosis is 1.675119. It depicts that the 1st Difference of Return series is negatively skewed and follows fat tailed distributions.
+skewness(ts.dt1[,4]) ; kurtosis(ts.dt1[,4])
+# The Skewness of the 2nd Difference of Return is 0.1694073 & Kurtosis is 0.7215478. It depicts that the 2nd Difference of Return series is positively skewed & follows fat tailed distributions.
+
+# ggplot(data = ts.dt1[,2], aes(sample = Return1)) + stat_qq() + stat_qq_line(col = 'red') + ggtitle('QQ plot of EMC Returns')
+# ggplot(data = ts.dt1[,3], aes(sample = Return2)) + stat_qq() + stat_qq_line(col = 'red') + ggtitle('QQ plot of 1st Difference of EMC Returns')
+
+# Normality Test
+jarque.bera.test(na.omit(ts.dt1[,2]))
+# The p-value of the Jarque Bera Test is 0.005626 which is smaller than 0.05 at 5% level of significance. Therefore, we can reject null hypothesis and conclude that the Return series is not normally distributed.
+jarque.bera.test(na.omit(ts.dt1[,3]))
+# The p-value of the Jarque Bera Test is 0.002733 which is smaller than 0.05 at 5% level of significance. Therefore, we can reject null hypothesis and conclude that the 1sr Difference Return series is not normally distributed.
+jarque.bera.test(na.omit(ts.dt1[,4]))
+# The p-value of the Jarque Bera Test is 0.4702 which is greater than 0.05 at 5% level of significance. Therefore, we do not reject null hypothesis and conclude that the 2nd Difference of Return series is normally distributed.
+
+# Absence of Auto Correlation
+Box.test(na.omit(ts.dt1[,2]), type = "Ljung-Box")
+# The p-value of the Ljung-Box Test is 0.6066. Therefore, we can reject the null hypothesis at 1% level of significance & make a conclusion that the Return series is not independent.
+Box.test(na.omit(ts.dt1[,3]), type = "Ljung-Box")
+# The p-value of the Ljung-Box Test is 0.000002182. Therefore, we do not reject the null hypothesis at 1% level of significance & make a conclusion that the 1st Difference of Return series is independent.
+Box.test(na.omit(ts.dt1[,4]), type = "Ljung-Box")
+# The p-value of the Ljung-Box Test is 0.00000001864. Therefore, we do not reject the null hypothesis at 1% level of significance & make a conclusion that the 2nd Difference of Return series is independent.
+
+# Absolute Return or Squared of Return are auto correlated.
+a1 <- ggAcf(abs(na.omit(ts.dt1[,2])), col = 'red', main = 'ACF of Absolute Return of EMC')
+p1 <- ggPacf(abs(na.omit(ts.dt1[,2])), col = 'steelblue', main = 'PACF of Absolute Return of EMC')
+grid.arrange(a1, p1, ncol = 2, nrow = 1)
+c1 <- ggAcf(na.omit(ts.dt1[,2])^2, lag.max = 40, col = 'red', main = 'ACF of squared Return Values')
+d1 <- ggPacf(na.omit(ts.dt1[,2])^2, lag.max = 40, col = 'steelblue', main = 'PACF of squared Return Values')
+grid.arrange(c1, d1, ncol = 2, nrow = 1)
+# Both Absolute Return series and Squared Return series show that Auto correlation is decaying very slowly.
+
+a2 <- ggAcf(abs(na.omit(ts.dt1[,3])), col = 'red', main = 'ACF of Absolute 1st Difference of Return of EMC')
+p2 <- ggPacf(abs(na.omit(ts.dt1[,3])), col = 'steelblue', main = 'PACF of Absolute 1st Difference of Return of EMC')
+grid.arrange(a2, p2, ncol = 2, nrow = 1)
+c2 <- ggAcf(na.omit(ts.dt1[,3])^2, lag.max = 40, col = 'red', main = 'ACF of squared 1st Difference of Return Values')
+d2 <- ggPacf(na.omit(ts.dt1[,3])^2, lag.max = 40, col = 'steelblue', main = 'PACF of squared 1st Difference of Return Values')
+grid.arrange(c2, d2, ncol = 2, nrow = 1)
+
+a3 <- ggAcf(abs(na.omit(ts.dt1[,4])), col = 'red', main = 'ACF of Absolute 2nd Difference of Return of EMC')
+p3 <- ggPacf(abs(na.omit(ts.dt1[,4])), col = 'steelblue', main = 'PACF of Absolute 2nd Difference of Return of EMC')
+grid.arrange(a3, p3, ncol = 2, nrow = 1)
+c3 <- ggAcf(na.omit(ts.dt1[,4])^2, lag.max = 40, col = 'red', main = 'ACF of squared 2nd Difference of Return Values')
+d3 <- ggPacf(na.omit(ts.dt1[,4])^2, lag.max = 40, col = 'steelblue', main = 'PACF of squared 2nd Difference of Return Values')
+grid.arrange(c3, d3, ncol = 2, nrow = 1)
+
+# Volatility Clustering
+# Large changes of Return follow the large changes. Small changes follow small changes.
+chart.RollingPerformance(na.omit(ts.dt1[,2]), width = 22, FUN = 'sd.annualized', main = 'Rolling 1 month Volatility') # scale = 252
+chart.RollingPerformance(na.omit(ts.dt1[,3]), width = 22, FUN = 'sd.annualized', main = 'Rolling 1 month Volatility')
+chart.RollingPerformance(na.omit(ts.dt1[,4]), width = 22, FUN = 'sd.annualized', main = 'Rolling 1 month Volatility')
+# Since our Return series is fail to follow the financial stylized facts. We may improve our ARIMA model by using GARCH (Generalized Auto Regressive Heteroskedasticity) model.
+
+```
+
+```{r}
+# Create training and validation of the EMC stock data
+EMC.train <- window(ts.dt1, start = 2018, end = c(2022,9))
+EMC.test <- window(ts.dt1, start = c(2022,10), end = c(2022,12))
+```
