@@ -15,15 +15,15 @@ This project presents a comprehensive time series analysis of EMC stock data fro
 1. **Data Transformation & Stationarity Testing**:
    - Converted closing prices into log returns, 1st differences, and 2nd differences.
    - Performed **Augmented Dickey-Fuller (ADF)** tests to check for stationarity.
-   - *Result*: The 1st difference of return was found to be stationary and used for subsequent analysis[cite: 153].
+   - *Result*: The 1st difference of return was found to be stationary and used for subsequent analysis.
 
 2. **Autocorrelation Analysis**:
-   - Analyzed **ACF** and **PACF** for returns, absolute returns, and squared returns[cite: 153].
+   - Analyzed **ACF** and **PACF** for returns, absolute returns, and squared returns.
 
 3. **Stylized Facts of Financial Data**:
-   - **Distribution**: Tested for normality using the **Jarque-Bera test** and evaluated skewness and kurtosis (revealing positive/negative skewness and fat-tailed distributions)[cite: 153].
-   - **Autocorrelation in Returns**: Checked via the **Ljung-Box test**[cite: 153].
-   - **Volatility Clustering**: Analyzed rolling 1-month volatility to observe large/small return clustering[cite: 153].
+   - **Distribution**: Tested for normality using the **Jarque-Bera test** and evaluated skewness and kurtosis (revealing positive/negative skewness and fat-tailed distributions).
+   - **Autocorrelation in Returns**: Checked via the **Ljung-Box test**.
+   - **Volatility Clustering**: Analyzed rolling 1-month volatility to observe large/small return clustering.
 
 ---
 
